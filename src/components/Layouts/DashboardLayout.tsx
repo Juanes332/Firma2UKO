@@ -12,6 +12,7 @@ import ModeEditIcon from "@mui/icons-material/ModeEdit";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SignatureField from "./SignatureField";
+import SignatureModal from "./SignatureModal";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
@@ -138,11 +139,18 @@ const DashboardLayout = () => {
   const pdfViewerRef = useRef();
   const pageHeights = useRef([]);
   const accumulatedHeights = useRef([]);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureImage, setSignatureImage] = useState(null);
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
     setPageNumber(1);
+    setShowSignatureModal(true); // Mostrar modal de firma
     accumulatedHeights.current = new Array(numPages).fill(0);
+  };
+
+  const onSelectSignature = (signature) => {
+    setSignatureImage(signature);
   };
 
   useEffect(() => {
@@ -188,7 +196,6 @@ const DashboardLayout = () => {
         y: 100,
         width: 200,
         height: 50,
-        text: "Agrega tu firma",
         page: pageNumber,
       },
     ]);
@@ -372,6 +379,7 @@ const DashboardLayout = () => {
                                     position
                                   );
                                 }}
+                                signatureImage={signatureImage}
                               />
                             )
                         )}
@@ -404,6 +412,11 @@ const DashboardLayout = () => {
           </Snackbar>
         </InnerWrapper>
       </Wrapper>
+      <SignatureModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        onSelectSignature={onSelectSignature}
+      />
     </React.Fragment>
   );
 };

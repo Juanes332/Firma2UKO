@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 
-const SignatureField = ({ field, onDragStop, onResizeStop }) => {
+const SignatureField = ({ field, onDragStop, onResizeStop, signatureImage }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [backgroundColor, setBackgroundColor] = useState('');
 
@@ -21,15 +21,15 @@ const SignatureField = ({ field, onDragStop, onResizeStop }) => {
   // Estilos transferidos del primer componente
   const fieldStyle = {
     border: '1px solid #007bff',
-    backgroundColor: field.signatureImage ? 'transparent' : backgroundColor,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    backgroundImage: `url(${field.signatureImage})`,
-    backgroundSize: 'contain',
+    backgroundSize: '100% 100%',
+    backgroundImage: `url(${signatureImage})`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
+    backgroundColor: signatureImage ? '#fff' : backgroundColor,
     color: 'black',
     fontSize: '14px'
   };
@@ -86,6 +86,7 @@ const SignatureField = ({ field, onDragStop, onResizeStop }) => {
       maxHeight={200.431}
       lockAspectRatio={true}
     >
+      
       <button 
         onClick={handleDelete}
         onTouchEnd={handleDelete} 
