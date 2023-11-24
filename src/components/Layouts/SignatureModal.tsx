@@ -29,14 +29,13 @@ const SignatureModal = ({ isOpen, onClose, onSelectSignature }) => {
   const predefinedSignatureSrc = '/assets/imgs/firmaPredefinida.png';
 
   const selectPredefinedSignature = () => {
-    onSelectSignature(predefinedSignatureSrc);
-    setIsCreating(false);
+    onSelectSignature(predefinedSignatureSrc); 
     onClose();
   };
 
   const saveSignature = () => {
     const signatureURL = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
-    onSelectSignature(signatureURL);
+    onSelectSignature(signatureURL); 
     onClose();
   };
 

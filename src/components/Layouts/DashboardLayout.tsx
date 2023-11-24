@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, createRef } from "react";
 import { Box, Button, styled, Snackbar } from "@mui/material";
 import Alert from "@mui/material/Alert";
 import DashboardNavbar from "./DashboardNavbar";
@@ -102,6 +102,12 @@ const BoxWithShadow = styled(Box)({
   padding: "1rem",
   marginTop: "1rem",
 });
+const ZoomInfoContainer = styled("div")({
+  display: "flex",
+  alignItems: "center", // Centra verticalmente el contenido
+  justifyContent: "center", // Centra horizontalmente el contenido
+  width: "60px", // Ancho del contenedor
+});
 
 const FileDropArea = styled(Box)({
   display: "flex",
@@ -123,6 +129,8 @@ const PageContainer = styled("div")({
   boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.7)", // Sombra
 });
 
+const predefinedSignatureSrc = '/assets/imgs/firmaPredefinida.png';
+
 const DashboardLayout = () => {
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -140,18 +148,90 @@ const DashboardLayout = () => {
   const pageHeights = useRef([]);
   const accumulatedHeights = useRef([]);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [signatureImage, setSignatureImage] = useState(null);
+  const [signatureImage, setSignatureImage] = useState(predefinedSignatureSrc);
+  const [convertedSignFields, setConvertedSignFields] = useState([]);
+  const [signaturePreferences, setSignaturePreferences] = useState(null);
+  const signFieldRefs = useRef([]);
+  
+
+  
+
+  const [zoomLevel, setZoomLevel] = useState(1.0);
+  const minZoo = 0.8; // 75%
+  const maxZoo = 1.8; // 175%
+
+  const zoomIn = () => {
+    const newZoom = zoomLevel + 0.2;
+    if (newZoom <= maxZoo) {
+      adjustSignFieldsForZoom(newZoom);
+      setZoomLevel(newZoom);
+    }
+  };
+
+  const zoomOut = () => {
+    const newZoom = zoomLevel - 0.2;
+    if (newZoom >= minZoo) {
+      adjustSignFieldsForZoom(newZoom);
+      setZoomLevel(newZoom);
+    }
+  };
+  const pixelsToPoints = (pixels, dpi = 96) => {
+    return (pixels * 72) / dpi; // 72 puntos por pulgada
+  };
+
+ useEffect(() => {
+   const dpi = window.devicePixelRatio * 96; 
+   const convertToPoints = (pixels) => (pixels * 72) / dpi;
+
+   const newConvertedFields = signFields.map((field) => ({
+     ...field,
+     x: convertToPoints(field.x),
+     y: convertToPoints(field.y),
+     width: convertToPoints(field.width),
+     height: convertToPoints(field.height),
+   }));
+
+   setConvertedSignFields(newConvertedFields);
+   
+ }, [signFields]);
+ console.log(convertedSignFields)
+
+  const adjustSignFieldsForZoom = (newZoom) => {
+    const adjustedFields = signFields.map((field) => {
+      const zoomRatio = newZoom / field.zoomAtCreation;
+      return {
+        ...field,
+        x: field.x * zoomRatio,
+        y: field.y * zoomRatio,
+        width: field.width * zoomRatio,
+        height: field.height * zoomRatio,
+        zoomAtCreation: newZoom, // lizar el nivel de zoom de creación
+      };
+    });
+    setSignFields(adjustedFields);
+  };
+ 
+
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
     setPageNumber(1);
-    setShowSignatureModal(true); // Mostrar modal de firma
     accumulatedHeights.current = new Array(numPages).fill(0);
   };
 
   const onSelectSignature = (signature) => {
-    setSignatureImage(signature);
+    setSignatureImage(signature); // Establece la imagen de la firma actual
+    setSignaturePreferences(signature); // Guarda la preferencia de firma
   };
+
+  useEffect(() => {
+    // Si hay preferencias de firma y se ha seleccionado un archivo, aplicar la firma
+    if (signaturePreferences && selectedFile) {
+      setSignatureImage(signaturePreferences);
+    }
+  }, [selectedFile, signaturePreferences]);
+  
+  
 
   useEffect(() => {
     const calculatePageHeights = () => {
@@ -188,18 +268,62 @@ const DashboardLayout = () => {
     }
   };
 
-  const addSignField = () => {
-    setSignFields([
-      ...signFields,
-      {
-        x: 100,
-        y: 100,
-        width: 200,
-        height: 50,
-        page: pageNumber,
-      },
-    ]);
+  const isElementInView = (el) => {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
   };
+
+  const addSignField = () => {
+    // Asumiendo que cada página tiene el mismo tamaño, obtenemos las dimensiones de la primera página
+    const page = document.querySelector(".react-pdf__Page");
+    if (!page) {
+      console.error("No se encontró la página del PDF");
+      return;
+    }
+  
+    const pageRect = page.getBoundingClientRect();
+    const pageWidth = pageRect.width;
+    const pageHeight = pageRect.height;
+  
+    // Dimensiones y posición del campo de firma
+    const fieldWidth = 200;  // Ancho del campo de firma
+    const fieldHeight = 50;  // Altura del campo de firma
+    const fieldX = (pageWidth - fieldWidth) / 2; // Posición X centrada
+    const marginFromBottom = 200; // Margen desde la parte inferior de la página
+    const fieldY = pageHeight - fieldHeight - marginFromBottom; // Posición Y ajustada
+  
+    // Asegúrate de que el campo de firma no se coloque fuera de la página
+    const newField = {
+      x: Math.max(0, fieldX),
+      y: Math.max(0, fieldY),
+      width: fieldWidth,
+      height: fieldHeight,
+      page: pageNumber,
+      zoomAtCreation: zoomLevel,
+    };
+  
+    setSignFields((prevFields) => {
+      const newFields = [...prevFields, newField];
+      // Asegurar que el arreglo de refs tenga el mismo tamaño que el de campos
+      signFieldRefs.current = newFields.map((_, i) => signFieldRefs.current[i] || createRef());
+      return newFields;
+    });
+
+    // Desplazarse al nuevo campo después de que se haya actualizado el estado
+  setTimeout(() => {
+    const newFieldRef = signFieldRefs.current[signFieldRefs.current.length - 1];
+    if (newFieldRef.current && !isElementInView(newFieldRef.current)) {
+      newFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, 1000); // Retraso para asegurar que el estado y el DOM se hayan actualizado
+};
+  
+  
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -256,12 +380,27 @@ const DashboardLayout = () => {
   const onResizeStop = (fieldIndex, size, position) => {
     const updatedFields = signFields.map((field, index) => {
       if (index === fieldIndex) {
-        return { ...field, ...size, ...position };
+        const newSize = {
+          width: parseFloat(size.width.replace("px", "")), // Asegurarse de que width es un número
+          height: parseFloat(size.height.replace("px", "")), // Asegurarse de que height es un número
+        };
+        const newPosition = {
+          x: position.x, // Asumiendo que x es ya un número
+          y: position.y, // Asumiendo que y es ya un número
+        };
+
+        return {
+          ...field,
+          ...newSize,
+          ...newPosition,
+          zoomAtCreation: zoomLevel, // Actualiza con el nivel de zoom actual
+        };
       }
       return field;
     });
     setSignFields(updatedFields);
   };
+
 
   const handleBackButtonClick = () => {
     setSelectedFile(null);
@@ -305,9 +444,16 @@ const DashboardLayout = () => {
               <NavButton>
                 Firmar <KeyboardArrowDownIcon />{" "}
               </NavButton>
-              <NavButton>
+              <NavButton onClick={zoomOut}>
                 {" "}
-                100% <ZoomInIcon />
+                <ZoomOutIcon />
+              </NavButton>
+              <ZoomInfoContainer>
+                {Math.round(zoomLevel * 100)}%
+              </ZoomInfoContainer>
+              <NavButton onClick={zoomIn}>
+                {" "}
+                <ZoomInIcon />
               </NavButton>
               <NavButton>
                 {" "}
@@ -315,10 +461,9 @@ const DashboardLayout = () => {
                 Solicitar Firmas
               </NavButton>
               <NavButton>Opción 4</NavButton>
-              <NavButton>
-                {" "}
-                <SettingsSuggestIcon /> Preferencias
-              </NavButton>
+              <NavButton onClick={() => setShowSignatureModal(true)}>
+  <SettingsSuggestIcon /> Preferencias
+</NavButton>
 
               {selectedFile && (
                 <NavButton onClick={addSignField}>
@@ -355,12 +500,14 @@ const DashboardLayout = () => {
                         pageNumber={index + 1}
                         renderTextLayer={false}
                         className="react-pdf__Page"
+                        scale={zoomLevel}
                       >
                         {signFields.map(
                           (field, fieldIndex) =>
                             field.page === index + 1 && ( // Solo renderizamos los campos de firma que pertenecen a esta página
                               <SignatureField
                                 key={fieldIndex}
+                                ref={signFieldRefs.current[fieldIndex]}
                                 field={field}
                                 onDragStop={(e, d) => onDragStop(fieldIndex, d)}
                                 onResizeStop={(
